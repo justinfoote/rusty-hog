@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 
-# This is a simple script meant to filter the results from gh_org_scanner.py using a blacklist of words.
-# It outputs the results as output_filtered.csv
+# This is a simple script meant to filter the results from choctaw-hog using a list of
+# allowed words. It accepts a single optional parameter -- the filename of the json
+# report to filter.  If not provided, it looks for a file called 'output.json'. It
+# creates a new file to hold the filtered report, given the name of the input file
+# prepended with 'filtered_'.
 
 import csv
+import sys
+import json
 
 fpwords = ['foo',
            'bar',
@@ -24,6 +29,7 @@ fpwords = ['foo',
            'local_production',
            'username@hostname',
            '1234567890',
+           '0123456789',
            'metadata-injection',
            'kubernetes-static',
            'fitzgen@github.com',
@@ -47,17 +53,18 @@ fpwords = ['foo',
            ]
 
 
-def fpfilter(x):
-    for (k,v) in x.items():
-        for badword in fpwords:
-            if badword.lower() in v.lower():
-                return False
-    return True
+def fpfilter(entry):
+    return not any([word.lower() in string.lower()
+            for word in fpwords
+            for string in entry['stringsFound']])
 
 
-with open('output.csv') as f:
-    reader = csv.DictReader(f)
-    out = filter(fpfilter, reader)
-    with open('output_filtered.csv', 'w') as o:
-        writer = csv.DictWriter(o, fieldnames=['Repository','reason','stringsFound','path','commit','commitHash','date'])
-        writer.writerows(out)
+def filter_file(filename):
+    with open(filename) as infile:
+        positives = json.load(infile)
+        with open('filtered_%s' % filename, 'w') as outfile:
+          json.dump(list(filter(fpfilter, positives)), outfile)
+
+if __name__ == '__main__':
+  filename = sys.argv[1] if len(sys.argv) > 1 else 'output.json'
+  filter_file(filename)
